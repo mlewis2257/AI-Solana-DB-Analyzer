@@ -1,0 +1,24 @@
+<!-- public/index.html -->
+<!doctype html>
+<html>
+  <head>
+    <title>COLOR Agent</title>
+  </head>
+  <body>
+    <input id="q" size="80" placeholder="Ask something..." />
+    <button onclick="send()">Send</button>
+    <pre id="log"></pre>
+    <script>
+      const ws = new WebSocket(`ws://${location.host}`);
+      const log = document.getElementById("log");
+      ws.onmessage = (e) => {
+        log.textContent +=
+          JSON.stringify(JSON.parse(e.data), null, 2) + "\n---\n";
+      };
+      function send() {
+        log.textContent = "";
+        ws.send(JSON.stringify({ query: document.getElementById("q").value }));
+      }
+    </script>
+  </body>
+</html>
