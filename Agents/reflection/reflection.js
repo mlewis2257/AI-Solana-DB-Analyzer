@@ -11,20 +11,27 @@ const synthesize = async (
   onEvent = () => {},
   max_tokens = 1500,
 ) => {
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: max_tokens,
-    system: `Answer directly and concisely. If the question involves a term with multiple common definitions or measurements (e.g. a city's population meaning different things depending on boundaries used), state which specific definition your number refers to in a few words — don't hide the ambiguity, but don't over-explain it either. One to two sentences max.`,
-    messages: [
-      {
-        role: "user",
-        content: `Question: ${question}\n\nInformation already gathered: ${gatheredInfo}\n\nGive the direct final answer.`,
-      },
-    ],
-  });
-  const text = response.content.find((b) => b.type === "text")?.text ?? "";
-  onEvent({ type: "Synthesis Result", text });
-  return text;
+  onEvent({ type: "phase", phase: "synthesizing" });
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: max_tokens,
+      system: `Answer directly and concisely. If the question involves a term with multiple common definitions or measurements (e.g. a city's population meaning different things depending on boundaries used), state which specific definition your number refers to in a few words — don't hide the ambiguity, but don't over-explain it either. One to two sentences max.`,
+      messages: [
+        {
+          role: "user",
+          content: `Question: ${question}\n\nInformation already gathered: ${gatheredInfo}\n\nGive the direct final answer.`,
+        },
+      ],
+    });
+    const text = response.content.find((b) => b.type === "text")?.text ?? "";
+    onEvent({ type: "Synthesis Result", text });
+    return text;
+  } catch (error) {
+    console.error("Synthesize error", error.message);
+    onEvent({ type: "error", message: `Synthesis failed: ${error.message}` });
+    return "Unable to generate an answer due to a temporary API issue. Please try again.";
+  }
 };
 
 export const critiqueAgentResponse = async (
