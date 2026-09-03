@@ -17,6 +17,7 @@ export const runSolanaQuery = async (input) => {
     max_conviction_score,
     vip_tier,
     order_by = "exit_time",
+    order_direction = "desc",
     aggregate = false,
     limit = 20,
   } = input;
@@ -58,8 +59,12 @@ export const runSolanaQuery = async (input) => {
     values.push(max_conviction_score);
   }
   if (vip_tier !== undefined) {
-    conditions.push(`p.vip_tier = $${i++}`);
-    values.push(vip_tier);
+    if (vip_tier === "none" || vip_tier === "untiered") {
+      conditions.push(`p.vip_tier IS NULL`);
+    } else {
+      conditions.push(`p.vip_tier = $${i++}`);
+      values.push(vip_tier);
+    }
   }
 
   const where =
@@ -74,6 +79,7 @@ export const runSolanaQuery = async (input) => {
   };
 
   const sortColumn = ALLOWED_SORTED_COLUMNS[order_by] || "p.exit_time";
+  const direction = order_direction === "asc" ? "ASC" : "DESC";
 
   const safeLimit = Math.min(Math.max(parseInt(limit) || 20, 1), 100);
 
@@ -102,7 +108,7 @@ export const runSolanaQuery = async (input) => {
             LEFT JOIN tokens t ON t.id = p.token_id
             LEFT JOIN calls c ON c.id = p.call_id
             ${where}
-            ORDER BY ${sortColumn} DESC NULLS LAST
+            ORDER BY ${sortColumn} ${direction} DESC NULLS LAST
             LIMIT ${safeLimit}
            `;
   console.log("--- QUERY ---");

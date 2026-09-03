@@ -125,6 +125,12 @@ const tools = [
           ],
           description: "Field to sort by, default exit_time",
         },
+        order_direction: {
+          type: "string",
+          enum: ["asc", "desc"],
+          description:
+            "Sort direction. Use 'asc' for worst/lowest/smallest questions, 'desc' (default) for best/highest/largest.",
+        },
         vip_tier: { type: "string" },
         limit: {
           type: "number",
