@@ -1,2 +1,4 @@
 Agents/langchain-academy/
 Agents/lca-deployment/
+.env
+node_modules/

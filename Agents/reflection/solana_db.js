@@ -102,7 +102,7 @@ export const runSolanaQuery = async (input) => {
             LEFT JOIN tokens t ON t.id = p.token_id
             LEFT JOIN calls c ON c.id = p.call_id
             ${where}
-            ORDER BY p.exit_time DESC NULLS LAST
+            ORDER BY ${sortColumn} DESC NULLS LAST
             LIMIT ${safeLimit}
            `;
   console.log("--- QUERY ---");

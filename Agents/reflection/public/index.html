@@ -1,24 +1,347 @@
 <!-- public/index.html -->
 <!doctype html>
-<html>
+<html lang="en">
   <head>
-    <title>COLOR Agent</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Solana Trade Analysis</title>
+    <style>
+      :root {
+        --bg: #0e1210;
+        --surface: #161b19;
+        --border: #262d2a;
+        --text-primary: #e8ece9;
+        --text-secondary: #8a938d;
+        --text-muted: #5a6360;
+        --accent-teal: #2dd4a7;
+        --accent-amber: #e0a940;
+        --accent-red: #e0625a;
+        --mono: "SF Mono", "Menlo", "Consolas", monospace;
+        --sans: -apple-system, "Segoe UI", sans-serif;
+        --radius: 8px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text-primary);
+        font-family: var(--sans);
+        padding: 1rem;
+        min-height: 100vh;
+        padding: 2.5rem 1.5rem;
+      }
+      .shell {
+        max-width: 720px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 13px;
+        font-weight: 600;
+        margin: 0 0 0.25rem;
+        letter-spacing: -0.01em;
+      }
+      .subtitle {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin: 0 0 1.5rem;
+      }
+      .query-row {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 2rem;
+      }
+      #query {
+        flex: 1;
+        background: var(--surface);
+        border: 0.5px solid var(--border);
+        border-radius: var(--radius);
+        color: var(--text-primary);
+        font-family: var(--sans);
+        font-size: 14px;
+        padding: 10px 14px;
+        outline: none;
+      }
+      #query:focus {
+        border-color: var(--accent-teal);
+      }
+      #query::placeholder {
+        color: var(--text-muted);
+      }
+      button {
+        background: var(--accent-teal);
+        color: #0e1210;
+        border: none;
+        border-radius: var(--radius);
+        font-family: var(--sans);
+        font-size: 14px;
+        font-weight: 500;
+        padding: 10px 18px;
+        cursor: pointer;
+      }
+      button:hover {
+        opacity: 0.9;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .error-msg {
+        font-size: 13px;
+        color: var(--accent-red);
+        margin: -1.25rem 0 1.5rem;
+        display: none;
+      }
+      .timeline {
+        position: relative;
+        padding-left: 22px;
+      }
+      .timeline::before {
+        content: "";
+        position: absolute;
+        left: 6px;
+        top: 6px;
+        bottom: 6px;
+        width: 1px;
+        background: var(--border);
+      }
+      .event {
+        position: relative;
+        margin-bottom: 14px;
+        animation: fadein 0.25s ease;
+      }
+      .event::before {
+        content: "";
+        position: absolute;
+        left: -22px;
+        top: 4px;
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--text-muted);
+        border: 2px solid var(--bg);
+      }
+      .event.phase::before {
+        background: var(--accent-amber);
+      }
+      .event.tool::before {
+        background: var(--accent-teal);
+      }
+      .event.critique::before {
+        background: var(--accent-amber);
+      }
+      .event.done::before {
+        background: var(--accent-teal);
+      }
+      .event.error::before {
+        background: var(--accent-red);
+      }
+      .event-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        margin-bottom: 3px;
+      }
+      .event-card {
+        background: var(--surface);
+        border: 0.5px solid var(--border);
+        border-radius: var(--radius);
+        padding: 10px 14px;
+      }
+      .event-card.plain {
+        background: none;
+        border: none;
+        padding: 0 0 0 2px;
+        font-size: 13px;
+        color: var(--text-secondary);
+      }
+      .tool-name {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        color: var(--accent-teal);
+      }
+      .tool-input {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-top: 4px;
+        word-break: break-all;
+      }
+      .answer-text {
+        font-size: 14.5px;
+        line-height: 1.6;
+        color: var(--text-primary);
+      }
+      .verdict-badge {
+        display: inline-block;
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        margin-bottom: 6px;
+      }
+      .verdict-approved {
+        background: rgba(45, 212, 167, 0.15);
+        color: var(--accent-teal);
+      }
+      .verdict-revise {
+        background: rgba(224, 169, 64, 0.15);
+        color: var(--accent-amber);
+      }
+      .final-card {
+        border: 0.5px solid var(--accent-teal);
+        background: rgba(45, 212, 167, 0.06);
+      }
+      .meta-row {
+        display: flex;
+        gap: 14px;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 0.5px solid var(--border);
+        font-size: 11.5px;
+        color: var(--text-muted);
+        font-family: var(--mono);
+      }
+      @keyframes fadein {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    </style>
   </head>
   <body>
-    <input id="q" size="80" placeholder="Ask something..." />
-    <button onclick="send()">Send</button>
-    <pre id="log"></pre>
+    <div class="shell">
+      <h1>Solana Trade Analysis</h1>
+      <p class="" subtitle>
+        Ask a question about live trading history. Reasoning streams below as it
+        happens.
+      </p>
+      <div class="query-row">
+        <input
+          id="query"
+          type="text"
+          placeholder="e.g. How does the Strategy B compare to Strategy A?"
+        />
+        <button id="send">Ask</button>
+      </div>
+
+      <p class="error-msg" id="error-msg"></p>
+      <div class="timeline" id="timeline"></div>
+    </div>
     <script>
-      const ws = new WebSocket(`ws://${location.host}`);
-      const log = document.getElementById("log");
-      ws.onmessage = (e) => {
-        log.textContent +=
-          JSON.stringify(JSON.parse(e.data), null, 2) + "\n---\n";
-      };
-      function send() {
-        log.textContent = "";
-        ws.send(JSON.stringify({ query: document.getElementById("q").value }));
+      const ws = new WebSocket(`ws://${window.location.host}/ws`);
+      const timeline = document.getElementById("timeline");
+      const queryInput = document.getElementById("query");
+      const sendButton = document.getElementById("send");
+      const errorMsg = document.getElementById("error-msg");
+
+      function addEvent(className, labelText, cardHtml) {
+        const el = document.createElement("div");
+        el.className = "event " + className;
+        el.innerHTML = `<div class="event-label">${labelText}</div><div class="event-card">${cardHtml}</div>`;
+        timeline.appendChild(el);
+        el.scrollIntoView({ behavior: "smooth", block: "end" });
       }
+
+      function handleEvent(event) {
+        if (event.type === "phase") {
+          const labels = {
+            gathering: "Gathering Data",
+            synthesizing: "Synthesizing answer",
+            critique: "critiquing",
+            done: "Done",
+          };
+          addEvent(
+            "phase",
+            "Phase",
+            `<span class="answer-text" style="font-size:13px">${labels[event.phase] || event.phase}</span>`,
+          );
+        } else if (event.type === "tool_call") {
+          addEvent(
+            "tool",
+            "Tool Call",
+            `<span class="tool-name">${event.tool}</span>
+            <div class="tool-input">${JSON.stringify(event.input || {})}</div>`,
+          );
+        } else if (event.type === "tool_result") {
+          let preview =
+            typeof event.result === "string"
+              ? event.result
+              : JSON.stringify(event.result);
+          if (preview && preview.length > 200) {
+            preview = preview.slice(0, 200) + "_";
+          }
+          addEvent(
+            "tool",
+            "Tool Result",
+            `<div class="tool-input">${preview || "(no result)"}</div>`,
+          );
+        } else if (event.type === "synthesis_result") {
+          addEvent(
+            "phase",
+            "Draft answer",
+            `<div class="answer-text">${event.text}</div>`,
+          );
+        } else if (event.type === "critique_result") {
+          const approved = event.verdict === "APPROVED";
+          const badge = approved
+            ? '<span class="verdict-badge verdict-approved">approved</span>'
+            : '<span class="verdict-badge verdict-revise">flagged</span>';
+          const note = event.feedback
+            ? `<div class="answer-text" style="font-size:13px">${event.feedback}</div>`
+            : "";
+          addEvent("critique", "Review", badge + note);
+        } else if (event.type === "done") {
+          const el = document.createElement("div");
+          el.className = "event done";
+          el.innerHTML = `
+          <div class="event-label">Final answer</div>
+          <div class="event-card final-card">
+            <div class="answer-text">${event.finalText}</div>
+            <div class="meta-row">
+              <span>tools: ${(event.toolsCalled || []).length}</span>
+              <span>${event.genuineRevision ? "revised" : "no revision needed"}</span>
+            </div>
+          </div>`;
+          timeline.appendChild(el);
+          el.scrollIntoView({ behavior: "smooth", block: "end" });
+          sendButton.disabled = false;
+        } else if (event.type === "error") {
+          addEvent(
+            "error",
+            "Error",
+            `<span style="color:var(--accent-red)">${event.message}</span>`,
+          );
+          sendButton.disabled = false;
+        }
+      }
+      ws.onmessage = (e) => handleEvent(JSON.parse(e.data));
+
+      function send() {
+        if (sendButton.disabled) return;
+        const q = queryInput.value.trim();
+        if (!q) {
+          errorMsg.textContent = "Enter a question first.";
+          errorMsg.style.display = "block";
+          return;
+        }
+        errorMsg.style.display = "none";
+        timeline.innerHTML = "";
+        sendButton.disabled = true;
+        ws.send(JSON.stringify({ query: q }));
+      }
+
+      sendButton.addEventListener("click", send);
+      queryInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") send();
+      });
+      console.log("index.html loaded — v2 with send guard");
     </script>
   </body>
 </html>

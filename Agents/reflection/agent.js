@@ -261,6 +261,7 @@ When giving a final answer: be direct and concise. Do not use markdown headers, 
           tool_use_id: block.id,
           content: result,
         });
+        console.log("Handling tool_use id:", block.id, block.name);
       }
     }
     if (toolResult.length > 0) {
