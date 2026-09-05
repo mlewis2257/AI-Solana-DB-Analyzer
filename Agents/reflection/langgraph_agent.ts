@@ -176,4 +176,8 @@ async function main_search() {
   console.log("Final Message:", lastMessage?.content);
 }
 
-main_search();
+export { tools, model, assistantNode };
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main_search();
+}
