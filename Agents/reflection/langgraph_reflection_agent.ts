@@ -92,9 +92,16 @@ async function critiqueNode(state: typeof ReflectionState.State) {
     .join("\n");
   try {
     const response = await critiqueModel.invoke(
-      `Question: ${question}\n\nInformation already gathered: ${gatheredInfo}\n\n` +
-        `The assistant's answer was: "${answer}"\n\n` +
-        `Please provide a critique of the answer, and if it is incorrect or incomplete, provide feedback for improvement.`,
+      `You are reviewing an AI assistant's answer for correctness before it's shown to the user.
+
+Question: ${question}
+
+Answer: ${answer}
+
+Raw data the assistant actually gathered (this IS the ground truth -- check the answer against THIS, not against what you'd expect to see):
+${gatheredInfo}
+
+Check for: logical/arithmetic errors, claims not supported by gathered information, answering a different question than asked, truncation, AND — if the answer presents a ranked or sorted list — verify the items are actually in correct order by the stated metric. A list that's numerically correct but out of order should be flagged as REVISE.`,
     );
     const toolCall = response.tool_calls?.[0];
     const verdict = toolCall?.args?.verdict ?? "APPROVED";
