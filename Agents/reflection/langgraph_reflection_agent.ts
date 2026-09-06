@@ -181,4 +181,6 @@ async function main() {
   console.log("Number of Revisions:", result.revisionCount);
 }
 
-main();
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main();
+}
