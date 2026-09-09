@@ -6,11 +6,10 @@ import {
   START,
 } from "@langchain/langgraph";
 import { toolsCondition, ToolNode } from "@langchain/langgraph/prebuilt";
-import { tools, model, assistantNode } from "./langgraph_agent.js";
+import { tools, assistantNode } from "./langgraph_agent.js";
 import { ChatAnthropic } from "@langchain/anthropic";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { threadId } from "node:worker_threads";
 
 const ReflectionState = Annotation.Root({
   ...MessagesAnnotation.spec,
@@ -25,7 +24,6 @@ const ReflectionState = Annotation.Root({
 const plainModel = new ChatAnthropic({ model: "claude-sonnet-4-6" });
 
 async function synthesizeNode(state: typeof ReflectionState.State) {
-  // ??? -- same logic as synthesize() in reflection.js:
   try {
     const question = state.messages[0]?.content;
     const gatheredInfo = state.messages
@@ -84,7 +82,6 @@ const critiqueModel = new ChatAnthropic({
 });
 
 async function critiqueNode(state: typeof ReflectionState.State) {
-  // ??? -- same logic as critiqueAgentResponse() in reflection.js:
   const question = state.messages[0]?.content;
   const answer = state.draftAnswer;
   const gatheredInfo = state.messages
@@ -119,13 +116,10 @@ Check for: logical/arithmetic errors, claims not supported by gathered informati
 }
 
 function routeAfterCritique(state: typeof ReflectionState.State) {
-  // ??? -- return "synthesize" if state.critiqueFeedback is set (REVISE), else "__end__"
   if (state.critiqueFeedback && state.revisionCount < 2) {
     return "synthesize";
   }
   return "__end__";
-
-  //
 }
 
 const builder = new StateGraph(ReflectionState)

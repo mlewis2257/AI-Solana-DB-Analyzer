@@ -38,8 +38,8 @@ wss.on("connection", (ws) => {
               ws.send(JSON.stringify({ type: "phase", phase: "gathering" }));
               seenGathering = true;
             }
-            const aiMessage = update.message[0] as AIMessage;
-            for (const tc of aiMessage.tool_calls ?? []) {
+            const aiMessage = (update.message?.[0] as AIMessage) || undefined;
+            for (const tc of aiMessage?.tool_calls ?? []) {
               ws.send(
                 JSON.stringify({
                   type: "tool_call",
@@ -79,15 +79,19 @@ wss.on("connection", (ws) => {
         }
       }
       const finalState = await reflectionGraph.getState(config);
+      const toolCallNames = finalState.values.messages
+        .filter((m: any) => m?.tool_calls?.length)
+        .flatMap((m: any) => m?.tool_calls?.map((tc: any) => tc.name));
       ws.send(
         JSON.stringify({
           type: "done",
           finalText: finalState.values.draftAnswer,
           genuineRevision: finalState.values.revisionCount > 0,
-          toolsCalled: [],
+          toolsCalled: toolCallNames,
         }),
       );
     } catch (error) {
+      console.error("Full error in message handler:", error);
       ws.send(
         JSON.stringify({ type: "error", message: (error as Error).message }),
       );
