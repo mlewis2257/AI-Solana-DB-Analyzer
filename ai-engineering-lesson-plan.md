@@ -1,6 +1,6 @@
 # AI Engineering — Weekly Lesson Plan
 
-_Instructor: Claude. Structure mirrors the ByteByteAI 6-project arc. Each week = subject matter breakdown + curated resources + project spec + checkpoint. Stack choices lean on what you already know: Python for model/data work, Node/Express + JS for backend/real-time, your Postgres VPS instead of new infra._
+_Instructor: Structure mirrors the ByteByteAI 6-project arc. Each week = subject matter breakdown + curated resources + project spec + checkpoint. Stack choices lean on what you already know: Python for model/data work, Node/Express + JS for backend/real-time, your Postgres VPS instead of new infra._
 
 ---
 
