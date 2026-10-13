@@ -10,6 +10,7 @@ export const runSolanaQuery = async (input) => {
     symbol,
     status,
     is_strategy_b,
+    is_simulation,
     exit_reason,
     min_pnl_pct,
     max_pnl_pct,
@@ -37,6 +38,10 @@ export const runSolanaQuery = async (input) => {
   if (is_strategy_b !== undefined) {
     conditions.push(`p.is_strategy_b = $${i++}`);
     values.push(is_strategy_b);
+  }
+  if (is_simulation !== undefined) {
+    conditions.push(`p.is_simulation = $${i++}`);
+    values.push(is_simulation);
   }
   if (exit_reason !== undefined) {
     conditions.push(`p.exit_reason = $${i++}`);

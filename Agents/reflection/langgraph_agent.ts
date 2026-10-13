@@ -40,6 +40,12 @@ const solanaQuerySchema = z.object({
   symbol: z.string().optional(),
   status: z.string().optional(),
   is_strategy_b: z.boolean().optional(),
+  is_simulation: z
+    .boolean()
+    .optional()
+    .describe(
+      "false = live bot trades with real funds, true = paper (simulated) trades. Set this whenever the user says live, real, paper, or simulated.",
+    ),
   exit_reason: z.string().optional(),
   min_pnl_pct: z.number().optional(),
   max_pnl_pct: z.number().optional(),

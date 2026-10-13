@@ -10,9 +10,11 @@ import { tools, assistantNode } from "./langgraph_agent.js";
 import { ChatAnthropic } from "@langchain/anthropic";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import type { BaseMessage } from "@langchain/core/messages";
 
-const ReflectionState = Annotation.Root({
+export const ReflectionState = Annotation.Root({
   ...MessagesAnnotation.spec,
+  recalledContext: Annotation<string>,
   draftAnswer: Annotation<string>,
   critiqueFeedback: Annotation<string | null>,
   revisionCount: Annotation<number>({
@@ -21,23 +23,29 @@ const ReflectionState = Annotation.Root({
   }),
 });
 
-const plainModel = new ChatAnthropic({ model: "claude-sonnet-4-6" });
+export const plainModel = new ChatAnthropic({ model: "claude-sonnet-4-6" });
 
-async function synthesizeNode(state: typeof ReflectionState.State) {
+export async function synthesizeNode(state: typeof ReflectionState.State) {
   try {
-    const question = state.messages[0]?.content;
+    const question = latestQuestion(state.messages);
     const gatheredInfo = state.messages
       .map((m) => `${m.type}: ${m.content}`)
       .join("\n");
-
+    const memoryBlock = state.recalledContext
+      ? `Context from earlier sessions:\n${state.recalledContext}\n\n` +
+        `Follow the user preferences for format. Do not state a remembered ` +
+        `insight as fact unless the gathered information supports it.\n\n`
+      : "";
     if (!state.critiqueFeedback) {
       const response = await plainModel.invoke(
-        `Question: ${question}\n\nInformation already gathered: ${gatheredInfo}\n\nGive the direct final answer.`,
+        memoryBlock +
+          `Question: ${question}\n\nInformation already gathered: ${gatheredInfo}\n\nGive the direct final answer.`,
       );
       return { draftAnswer: response.content };
     } else {
       const response = await plainModel.invoke(
-        `Question: ${question}\n\nInformation already gathered: ${gatheredInfo}\n\n` +
+        memoryBlock +
+          `Question: ${question}\n\nInformation already gathered: ${gatheredInfo}\n\n` +
           `Your Previous Answer Was: "${state.draftAnswer}"\n\n` +
           `A reviewer flagged this issue: ${state.critiqueFeedback}\n\n` +
           `Please provide a corrected answer.`,
@@ -57,7 +65,7 @@ async function synthesizeNode(state: typeof ReflectionState.State) {
 }
 
 const submitReviewSchema = z.object({
-  verdict: z.string(),
+  verdict: z.enum(["APPROVED", "REVISE"]),
   feedback: z.string(),
 });
 
@@ -81,8 +89,8 @@ const critiqueModel = new ChatAnthropic({
   tool_choice: "submit_review",
 });
 
-async function critiqueNode(state: typeof ReflectionState.State) {
-  const question = state.messages[0]?.content;
+export async function critiqueNode(state: typeof ReflectionState.State) {
+  const question = latestQuestion(state.messages);
   const answer = state.draftAnswer;
   const gatheredInfo = state.messages
     .map((m) => `${m.type}: ${m.content}`)
@@ -103,6 +111,10 @@ Check for: logical/arithmetic errors, claims not supported by gathered informati
     const toolCall = response.tool_calls?.[0];
     const verdict = toolCall?.args?.verdict ?? "APPROVED";
     const feedback = toolCall?.args?.feedback ?? "";
+    console.log("--- CRITIQUE ---");
+    console.log("got a tool call:", Boolean(toolCall));
+    console.log("verdict:", verdict);
+    console.log("feedback:", feedback || "(none)");
 
     const genuineRevision = verdict === "REVISE" && feedback.length > 0;
     return { critiqueFeedback: genuineRevision ? feedback : null };
@@ -113,6 +125,32 @@ Check for: logical/arithmetic errors, claims not supported by gathered informati
   }
   // call the model with the submit_review tool forced, check state.draftAnswer
   // against the gathered data in state.messages, return { critiqueFeedback: ... }
+}
+
+export function latestQuestion(messages: BaseMessage[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.type === "human") {
+      const content = messages[i]?.content;
+      if (typeof content === "string") {
+        return content;
+      }
+      if (Array.isArray(content)) {
+        return content
+          .map((part) => {
+            if (typeof part === "string") {
+              return part;
+            }
+            if ("text" in part && typeof part.text === "string") {
+              return part.text;
+            }
+            return JSON.stringify(part);
+          })
+          .join("");
+      }
+      return "";
+    }
+  }
+  return "";
 }
 
 function routeAfterCritique(state: typeof ReflectionState.State) {
