@@ -16,6 +16,7 @@ export const ReflectionState = Annotation.Root({
   ...MessagesAnnotation.spec,
   recalledContext: Annotation<string>,
   draftAnswer: Annotation<string>,
+  approved: Annotation<boolean>,
   critiqueFeedback: Annotation<string | null>,
   revisionCount: Annotation<number>({
     default: () => 0,
@@ -92,9 +93,11 @@ const critiqueModel = new ChatAnthropic({
 export async function critiqueNode(state: typeof ReflectionState.State) {
   const question = latestQuestion(state.messages);
   const answer = state.draftAnswer;
-  const gatheredInfo = state.messages
-    .map((m) => `${m.type}: ${m.content}`)
-    .join("\n");
+  const toolResults =
+    state.messages
+      .filter((m) => m.type === "tool")
+      .map((m) => `${m.type}: ${m.content}`)
+      .join("\n") || "(no tool calls were made)";
   try {
     const response = await critiqueModel.invoke(
       `You are reviewing an AI assistant's answer for correctness before it's shown to the user.
@@ -104,23 +107,38 @@ Question: ${question}
 Answer: ${answer}
 
 Raw data the assistant actually gathered (this IS the ground truth -- check the answer against THIS, not against what you'd expect to see):
-${gatheredInfo}
+${toolResults}
 
 Check for: logical/arithmetic errors, claims not supported by gathered information, answering a different question than asked, truncation, AND — if the answer presents a ranked or sorted list — verify the items are actually in correct order by the stated metric. A list that's numerically correct but out of order should be flagged as REVISE.`,
     );
     const toolCall = response.tool_calls?.[0];
-    const verdict = toolCall?.args?.verdict ?? "APPROVED";
+    const verdict = toolCall?.args?.verdict;
     const feedback = toolCall?.args?.feedback ?? "";
     console.log("--- CRITIQUE ---");
-    console.log("got a tool call:", Boolean(toolCall));
-    console.log("verdict:", verdict);
-    console.log("feedback:", feedback || "(none)");
+    if (!toolCall || !verdict) {
+      console.error("critiqueNode: no verdict returned, answer is unreviewed");
+      return { approved: false, critiqueFeedback: null };
+    }
+    if (verdict === "APPROVED") {
+      console.log("critiqueNode: Verdict Approved, answer was reviewed");
+      console.log("got a tool call:", Boolean(toolCall));
+      console.log("verdict:", verdict);
+      return { approved: true, critiqueFeedback: null };
+    }
 
-    const genuineRevision = verdict === "REVISE" && feedback.length > 0;
-    return { critiqueFeedback: genuineRevision ? feedback : null };
+    if (verdict === "REVISE" && feedback) {
+      console.log("critiqueNode: Verdict is revised");
+      console.log("got a tool call:", Boolean(toolCall));
+      console.log("feedback:", feedback || "(none)");
+      return { approved: false, critiqueFeedback: feedback };
+    }
+
+    return { approved: false, critiqueFeedback: null };
   } catch (error) {
+    console.error("Error critiquing answer", error);
     return {
-      critiqueFeedback: `An Error Critiquing Answer: ${(error as Error).message}`,
+      critiqueFeedback: null,
+      approved: false,
     };
   }
   // call the model with the submit_review tool forced, check state.draftAnswer

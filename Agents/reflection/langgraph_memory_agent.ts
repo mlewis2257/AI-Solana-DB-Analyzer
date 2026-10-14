@@ -30,6 +30,7 @@ const RUN_RESET = {
   critiqueFeedback: null,
   revisionCount: 0,
   draftAnswer: "",
+  approved: false,
 };
 
 async function recallNode(
@@ -126,7 +127,7 @@ function routeAfterCritique(
 ): "synthesize" | "remember" | "__end__" {
   if (state.critiqueFeedback && state.revisionCount < 2) {
     return "synthesize";
-  } else if (!state.critiqueFeedback) {
+  } else if (state.approved) {
     return "remember";
   }
   return "__end__";
