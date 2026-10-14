@@ -2,10 +2,10 @@ import {
   StateGraph,
   MemorySaver,
   Annotation,
-  InMemoryStore,
   type BaseStore,
   type LangGraphRunnableConfig,
 } from "@langchain/langgraph";
+import { PostgresStore } from "@langchain/langgraph-checkpoint-postgres/store";
 import { toolsCondition, ToolNode } from "@langchain/langgraph/prebuilt";
 import {
   synthesizeNode,
@@ -17,10 +17,17 @@ import { tools, model } from "./langgraph_agent.js";
 import { SystemMessage } from "@langchain/core/messages";
 import { createHash } from "node:crypto";
 
-const memoryStore = new InMemoryStore();
-const NAMESPACE_INSIGHTS = ["solana-agent", "data_insights"];
+const MEMORY_DB_URL = process.env.MEMORY_DB_URL;
+if (!MEMORY_DB_URL) {
+  throw new Error(
+    "MEMORY_DB_URL is not set. Add it to .env and the compose file.",
+  );
+}
+
+const memoryStore = PostgresStore.fromConnString(MEMORY_DB_URL);
+const NAMESPACE_INSIGHTS = ["solana-agent", "data-insights"];
 const NAMESPACE_PREF = ["solana-agent", "preferences"];
-const NAMESPACE_LOG = ["solana-agent", "query_log"];
+const NAMESPACE_LOG = ["solana-agent", "query-log"];
 
 const MemoryState = Annotation.Root({
   ...ReflectionState.spec,
@@ -185,18 +192,25 @@ async function ask(question: string, threadId: string) {
 }
 
 async function main() {
-  await memoryStore.put(NAMESPACE_PREF, "answer-format", {
-    preference: "Present lists of trades as a markdown table",
-  });
-  await memoryStore.put(NAMESPACE_INSIGHTS, "seed-insight", {
-    insight: "Trading size for live bot is .05 SOL per trade",
-  });
-
-  await ask(
-    "What are the top 10 highest PnL trades from the live trading bot?",
-    "mem-1",
-  );
-  await ask("What is the average PnL % for live trades?", "mem-2");
+  const [question, threadId] = process.argv.slice(2);
+  if (!question || !threadId) {
+    console.error(
+      'Usage: npx tsx langgraph_memory_agent.ts "<question>" <thread-id>',
+    );
+    process.exit(1);
+  }
+  try {
+    await memoryStore.setup();
+    await memoryStore.put(NAMESPACE_PREF, "answer-format", {
+      preference: "Present lists of trades as a markdown table",
+    });
+    await memoryStore.put(NAMESPACE_INSIGHTS, "seed-insight", {
+      insight: "Trading size for live bot is .05 SOL per trade",
+    });
+    await ask(question, threadId);
+  } finally {
+    await memoryStore.stop();
+  }
 }
 //   const result = await memoryGraph.invoke(
 //     {
