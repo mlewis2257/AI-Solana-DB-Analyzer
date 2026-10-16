@@ -12,10 +12,13 @@ import {
   critiqueNode,
   ReflectionState,
   latestQuestion,
+  plainModel,
+  toolResultsText,
 } from "./langgraph_reflection_agent.js";
 import { tools, model } from "./langgraph_agent.js";
 import { SystemMessage } from "@langchain/core/messages";
 import { createHash } from "node:crypto";
+import { z } from "zod";
 
 const MEMORY_DB_URL = process.env.MEMORY_DB_URL;
 if (!MEMORY_DB_URL) {
@@ -39,6 +42,39 @@ const RUN_RESET = {
   draftAnswer: "",
   approved: false,
 };
+
+const insightSchema = z.object({
+  insight: z
+    .string()
+    .nullable()
+    .describe(
+      "One durable pattern from the data, or null if there is none worth remembering.",
+    ),
+});
+
+const insightModel = plainModel.withStructuredOutput(insightSchema);
+
+const verfiySchema = z.object({
+  reasoning: z
+    .string()
+    .describe(
+      "Check each claim in the insight against the tool results, briefly.",
+    ),
+  supported: z
+    .boolean()
+    .describe(
+      "true only if every claim is directly supported, with the stated scope.",
+    ),
+});
+
+const verifyModel = plainModel.withStructuredOutput(verfiySchema);
+
+function hashKey(text: string): string {
+  return createHash("sha256")
+    .update(text.trim().toLowerCase())
+    .digest("hex")
+    .slice(0, 16);
+}
 
 async function recallNode(
   state: typeof MemoryState.State,
@@ -112,20 +148,71 @@ async function rememberNode(
     console.error("rememberNode: no store on config");
     return {};
   }
+  const question = latestQuestion(state.messages);
+  if (!question) return {};
   try {
-    const question = latestQuestion(state.messages);
-    if (!question) return {};
-
-    const normalized = question.trim().toLowerCase();
-    const key = createHash("sha256")
-      .update(normalized)
-      .digest("hex")
-      .slice(0, 16);
-
-    await store.put(NAMESPACE_LOG, key, { past_query: question });
+    await store.put(NAMESPACE_LOG, hashKey(question), { past_query: question });
   } catch (error) {
     console.error("Failed to log query", error);
   }
+  try {
+    const prompt = `You decide whether an answered question revealed something worth remembering for future sessions.
+
+Question: ${question}
+
+Approved answer: ${state.draftAnswer}
+
+Raw tool results (the only evidence you may use):
+${toolResultsText(state.messages)}
+
+Return one insight only if the tool results show a pattern or comparison likely to stay true for weeks, such as how one group of trades performs relative to another.
+
+Rules:
+- Use only the raw tool results as evidence, never the answer's wording alone.
+- One sentence, under 25 words. Exactly one scope: live trades or paper trades, never both.
+- No numbers at all.
+- No advice, opinions, or recommendations.
+- If the question was a simple lookup, the answer is a single number, or the tools failed, return null.
+
+Most answers should return null.`;
+
+    const { insight } = await insightModel.invoke(prompt);
+
+    if (!insight || !insight.trim()) {
+      console.log("rememberNode: no durable insight");
+      return {};
+    }
+
+    const check = await verifyModel.invoke(
+      `You are checking a proposed memory before it is saved permanently.
+
+Proposed insight: ${insight}
+
+Raw tool results (the only evidence):
+${toolResultsText(state.messages)}
+
+Check every claim in the insight against the tool results. If any part is not directly supported, overgeneralizes (for example "consistently" or "across both" when the data shows an exception), or mixes live and paper scope, it is not supported.`,
+    );
+
+    if (!check.supported) {
+      console.log(
+        "rememberNode: insight REJECTED, not fully supported by tool results",
+        insight,
+      );
+      console.log("reasoning:", check.reasoning);
+      return {};
+    }
+
+    await store.put(NAMESPACE_INSIGHTS, hashKey(insight), {
+      insight,
+      recorded_at: new Date().toISOString(),
+      source_query: question,
+    });
+    console.log("rememberNode: stored insight:", insight);
+  } catch (error) {
+    console.error("rememberNode: insight extraction failed", error);
+  }
+
   return {};
 }
 
@@ -201,6 +288,7 @@ async function main() {
   }
   try {
     await memoryStore.setup();
+
     await memoryStore.put(NAMESPACE_PREF, "answer-format", {
       preference: "Present lists of trades as a markdown table",
     });

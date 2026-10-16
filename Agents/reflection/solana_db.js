@@ -21,6 +21,7 @@ export const runSolanaQuery = async (input) => {
     order_direction = "desc",
     aggregate = false,
     limit = 20,
+    group_by,
   } = input;
 
   const conditions = [];
@@ -83,6 +84,17 @@ export const runSolanaQuery = async (input) => {
     conviction_score: "c.conviction_score",
   };
 
+  const ALLOWED_GROUP_COLUMNS = {
+    exit_reason: "p.exit_reason",
+    is_strategy_b: "p.is_strategy_b",
+    vip_tier: "p.vip_tier",
+  };
+
+  const groupColumn = group_by ? ALLOWED_GROUP_COLUMNS[group_by] : undefined;
+  const groupSelect = groupColumn ? `${groupColumn} AS group_value,` : "";
+  const groupClause = groupColumn
+    ? `GROUP BY ${groupColumn} ORDER BY avg_pnl_pct DESC NULLS LAST`
+    : "";
   const sortColumn = ALLOWED_SORTED_COLUMNS[order_by] || "p.exit_time";
   const direction = order_direction === "asc" ? "ASC" : "DESC";
 
@@ -90,6 +102,7 @@ export const runSolanaQuery = async (input) => {
 
   const query = aggregate
     ? `     SELECT
+        ${groupSelect}
         COUNT(*) AS trade_count,
         AVG(p.pnl_pct) AS avg_pnl_pct,
         SUM(p.pnl_sol) AS total_pnl_sol,
@@ -99,6 +112,7 @@ export const runSolanaQuery = async (input) => {
         LEFT JOIN tokens t ON t.id = p.token_id
         LEFT JOIN calls c ON c.id = p.call_id
         ${where}
+        ${groupClause}
 `
     : `
            SELECT

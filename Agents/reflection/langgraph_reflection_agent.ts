@@ -93,11 +93,7 @@ const critiqueModel = new ChatAnthropic({
 export async function critiqueNode(state: typeof ReflectionState.State) {
   const question = latestQuestion(state.messages);
   const answer = state.draftAnswer;
-  const toolResults =
-    state.messages
-      .filter((m) => m.type === "tool")
-      .map((m) => `${m.type}: ${m.content}`)
-      .join("\n") || "(no tool calls were made)";
+  const toolResults = toolResultsText(state.messages);
   try {
     const response = await critiqueModel.invoke(
       `You are reviewing an AI assistant's answer for correctness before it's shown to the user.
@@ -169,6 +165,15 @@ export function latestQuestion(messages: BaseMessage[]): string {
     }
   }
   return "";
+}
+
+export function toolResultsText(messages: BaseMessage[]): string {
+  return (
+    messages
+      .filter((m) => m.type === "tool")
+      .map((m) => `${m.type}: ${m.content}`)
+      .join("\n") || "(no tool calls were made)"
+  );
 }
 
 function routeAfterCritique(state: typeof ReflectionState.State) {

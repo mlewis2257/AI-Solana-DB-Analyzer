@@ -64,6 +64,12 @@ const solanaQuerySchema = z.object({
   vip_tier: z.string().optional(),
   limit: z.number().optional(),
   aggregate: z.boolean().optional(),
+  group_by: z
+    .enum(["exit_reason", "is_strategy_b", "vip_tier"])
+    .optional()
+    .describe(
+      "With aggregate=true, return one row per distinct value of this column. Use this for 'which X is best/worst' questions instead of querying each value separately.",
+    ),
 });
 
 type SolanaQueryInput = z.infer<typeof solanaQuerySchema>;
